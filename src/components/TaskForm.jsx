@@ -1,18 +1,23 @@
 
 import { useState } from "react";
 
-function TaskForm({ onAddTask }) {
+function TaskForm({ onAddTask, token }) {
   const [title, setTitle] = useState("");
+  const [dueDate, setDueDate] = useState("");
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const trimmedTitle = title.trim();
-
     if (!trimmedTitle) return;
 
-    onAddTask(trimmedTitle);
+    await onAddTask({
+      title: trimmedTitle,
+      dueDate,
+    });
+
     setTitle("");
+    setDueDate("");
   }
 
   return (
@@ -22,9 +27,18 @@ function TaskForm({ onAddTask }) {
         value={title}
         onChange={(event) => setTitle(event.target.value)}
         placeholder="Enter a task"
+        required
       />
 
-      <button type="submit">Add Task</button>
+      <input
+        type="date"
+        value={dueDate}
+        onChange={(event) => setDueDate(event.target.value)}
+      />
+
+      <button type="submit" disabled={!token}>
+        Add Task
+      </button>
     </form>
   );
 }

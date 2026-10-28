@@ -1,39 +1,109 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import TaskList from "./components/TaskList";
 import TaskForm from "./components/TaskForm";
+import LoginForm from "./components/LoginForm";
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 function App() {
-  const [tasks, setTasks] = useState([
-    { id: 1, title: "Learn React", dueDate: "2026-10-22" },
-    { id: 2, title: "Build a task list", dueDate: "2026-10-23" },
-    { id: 3, title: "Finish GT13", dueDate: "2026-10-21" },
-  ]);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [token, setToken] = useState("");
 
-  function handleAddTask(title) {
-    const newTask = {
-      id: Date.now(),
-      title,
-      dueDate: "",
-    };
+  async function fetchTasks(authToken = token) {
+    setLoading(true);
+    setError("");
 
-    setTasks((previousTasks) => [...previousTasks, newTask]);
+    try {
+      const response = await fetch(`${API_URL}/api/tasks`, {
+        headers: authToken
+          ? { Authorization: `Bearer ${authToken}` }
+          : {},
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load tasks (${response.status})`);
+      }
+
+      const data = await response.json();
+      setTasks(Array.isArray(data) ? data : data.tasks ?? []);
+    } catch (err) {
+      setError(err.message || "Could not load tasks.");
+    } finally {
+      setLoading(false);
+    }
+  }
+async function handleLogin(username, password) {
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ username, password }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || "Login failed.");
   }
 
+  const receivedToken = data.token || data.accessToken;
+
+  if (!receivedToken) {
+    throw new Error("The login response did not include a token.");
+  }
+
+  setToken(receivedToken);
+  await fetchTasks(receivedToken);
+}
+  useEffect(() => {
+    fetchTasks("");
+  }, []);
+
+  async function handleAddTask(task) {
+    setError("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/tasks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(task),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to add task (${response.status})`);
+      }
+
+      await fetchTasks(token);
+    } catch (err) {
+      setError(err.message || "Could not add task.");
+    }
+  }
+
+  
   return (
     <main className="container">
-      <h1>GT13 - Task Manager</h1>
+      <h1>GT14 - Task Manager</h1>
       <p>Manage your tasks using React.</p>
 
-      <TaskForm onAddTask={handleAddTask} />
+      <LoginForm onLogin={handleLogin} />
 
-      <h2>My Tasks</h2>
+      {loading && <p>Loading...</p>}
+      {error && <p role="alert">{error}</p>}
 
-      {tasks.length === 0 ? (
-        <p>No tasks yet.</p>
-      ) : (
-        <TaskList tasks={tasks} />
+      {!loading && !error && (
+        <>
+          <TaskForm onAddTask={handleAddTask} token={token} />
+          <h2>My Tasks</h2>
+          <TaskList tasks={tasks} />
+        </>
       )}
     </main>
   );
